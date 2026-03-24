@@ -1,0 +1,12 @@
+# Sidekiq Cron Schedule
+sync_trades_market_hours:
+  cron: "*/5 9-16 * * 1-5"  # Every 5 min, 9am-4pm ET, Mon-Fri
+  class: "SyncAllAccountsJob"
+  queue: sync
+  description: "Sync trades every 5 minutes during market hours"
+
+generate_weekly_reports:
+  cron: "0 18 * * 5"  # Friday at 6pm ET
+  class: "GenerateAllWeeklyReportsJob"
+  queue: ai
+  description: "Generate weekly reports every Friday"

@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Dark mode (default via :root) ── */
+:root {
+  --surface:       #111118;
+  --surface-50:    #1A1A24;
+  --surface-100:   #141420;
+  --surface-200:   #0E0E18;
+  --surface-900:   #0A0A0F;
+  --color-border:  #2A2A3A;
+  --text-primary:  #F9FAFB;
+  --text-muted:    #9CA3AF;
+  --color-green:   #00D49C;
+  --color-green-500: #00B882;
+}
+
+/* ── Light mode — html.light overrides :root ── */
+html.light {
+  --surface:       #FFFFFF;
+  --surface-50:    #F3F4F6;
+  --surface-100:   #E9EBF0;
+  --surface-200:   #D1D5DB;
+  --surface-900:   #F8F9FA;
+  --color-border:  #D1D5DB;
+  --text-primary:  #111118;
+  --text-muted:    #6B7280;
+  --color-green:   #0A0A0F;
+  --color-green-500: #1A1A24;
+}
+
+/* ── Text color overrides for light mode ── */
+html.light .text-white          { color: #111118; }
+html.light .text-gray-100       { color: #1F2937; }
+html.light .text-gray-200       { color: #374151; }
+html.light .text-gray-300       { color: #374151; }
+html.light .text-gray-400       { color: #4B5563; }
+html.light .text-gray-500       { color: #6B7280; }
+html.light .text-gray-600       { color: #9CA3AF; }
+html.light .placeholder-gray-500::placeholder { color: #9CA3AF; }
+
+/* Share cards always render dark — override light mode text resets */
+html.light .share-card,
+html.light .share-card .text-white   { color: #ffffff; }
+html.light .share-card .text-gray-100 { color: #F3F4F6; }
+html.light .share-card .text-gray-300 { color: #D1D5DB; }
+html.light .share-card .text-gray-400 { color: #9CA3AF; }
+html.light .share-card .text-gray-500 { color: #6B7280; }
+html.light .share-card .text-gray-600 { color: #4B5563; }
+html.light .share-card .text-green   { color: #00D49C; }
+html.light .share-card .text-red     { color: #FF4D6A; }
+html.light .share-card .text-amber   { color: #F5A623; }
+html.light .share-card .text-blue    { color: #4A9EFF; }
+
+@layer base {
+  body {
+    @apply bg-surface-900 font-sans;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-50 border border-border rounded-xl p-4;
+  }
+
+  .btn-primary {
+    @apply bg-green text-surface-900 font-semibold px-4 py-2 rounded-lg hover:bg-green-500 transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-50 border border-border font-medium px-4 py-2 rounded-lg hover:bg-surface-100 transition-colors;
+    color: var(--text-muted);
+  }
+
+  .badge-positive {
+    @apply text-green-400 font-mono font-semibold;
+  }
+
+  .badge-negative {
+    @apply text-red-400 font-mono font-semibold;
+  }
+}

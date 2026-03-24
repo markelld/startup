@@ -1,0 +1,54 @@
+source "https://rubygems.org"
+
+gem "rails", "~> 8.1.2"
+gem "dotenv-rails", groups: [:development, :test]
+gem "pg", "~> 1.1"
+gem "puma", ">= 5.0"
+
+# Auth
+gem "devise"
+gem "devise-jwt"
+
+# GraphQL
+gem "graphql"
+
+# Background Jobs
+gem "sidekiq", "~> 6.5"
+gem "sidekiq-cron"
+gem "sidekiq-scheduler"
+gem "connection_pool", "~> 2.5"
+
+# SMS
+gem "twilio-ruby", "~> 7.0"
+
+# Redis
+gem "redis"
+
+# HTTP
+gem "httparty"
+
+# Stripe
+gem "stripe"
+
+# Encryption
+gem "attr_encrypted", "~> 4.0"
+
+# CORS
+gem "rack-cors"
+
+# UUID primary keys
+gem "activeuuid", require: false
+
+# Reduces boot times through caching
+gem "bootsnap", require: false
+
+# Windows does not include zoneinfo files
+gem "tzinfo-data", platforms: %i[ windows jruby ]
+
+group :development, :test do
+  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+end
+
+group :development do
+  gem "rubocop-rails-omakase", require: false
+end

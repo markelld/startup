@@ -1,0 +1,12 @@
+:concurrency: 10
+:queues:
+  - [sync, 4]
+  - [analytics, 3]
+  - [ai, 2]
+  - [default, 1]
+
+:scheduler:
+  daily_recap:
+    cron: "0 23 * * 1-5"   # 6pm ET (EST = UTC-5). During EDT (UTC-4) this fires at 7pm — adjust to "0 22 * * 1-5" in summer
+    class: SendDailyRecapJob
+    queue: default
