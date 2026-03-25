@@ -4,6 +4,7 @@ services:
     name: zone-redis
     plan: free
     maxmemoryPolicy: noeviction
+    ipAllowList: []
 
   # ── Rails API ────────────────────────────────────────────────────────────────
   - type: web
