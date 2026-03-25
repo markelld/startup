@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useMutation, useApolloClient } from '@apollo/client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, parseISO } from 'date-fns'
 import { MONTH_SESSIONS, TODAY_SESSION, LIST_ACCOUNTS } from '../lib/graphql/queries'
-import { CREATE_TRADE, DELETE_ACCOUNT, DELETE_TRADE } from '../lib/graphql/mutations'
+import { CREATE_TRADE, DELETE_ACCOUNT, DELETE_TRADE, UPDATE_TRADE_JOURNAL } from '../lib/graphql/mutations'
 import { useAccountStore } from '../stores/accountStore'
 import TradeDetailModal from '../components/TradeDetailModal'
 
@@ -238,6 +238,7 @@ function AddTradeModal({ date, onClose, onSaved }: { date: string; onClose: () =
 }
 
 // ── Trade Card ────────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TradeCard({ trade, onUpdated }: { trade: any; onUpdated: () => void }) {
   const [editing, setEditing] = useState(false)
   const [notes, setNotes] = useState(trade.notes || '')
@@ -467,7 +468,6 @@ function Calendar({
   const end = endOfMonth(currentMonth)
   const days = eachDayOfInterval({ start, end })
   const startPad = getDay(start) // 0=Sun
-  const blanks = Array(startPad).fill(null)
 
   return (
     <div className="card select-none">

@@ -122,7 +122,7 @@ export default function SettingsPage() {
                 <label className="block text-xs text-gray-400 mb-1.5">Phone Number</label>
                 <input
                   type="tel"
-                  value={phone}
+                  value={phone ?? ''}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 555 000 0000"
                   className={inputClass}

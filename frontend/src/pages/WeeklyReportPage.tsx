@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useApolloClient } from '@apollo/client'
 import {
   format, parseISO,
-  startOfWeek, endOfWeek, subWeeks,
+  startOfWeek, subWeeks,
   startOfMonth, endOfMonth, subMonths,
   startOfYear, endOfYear, subYears,
-  eachWeekOfInterval, eachMonthOfInterval,
   addDays, endOfDay, isAfter, addMonths, addYears,
 } from 'date-fns'
 import { LIST_REPORTS, CURRENT_ACCOUNT } from '../lib/graphql/queries'
@@ -192,7 +191,7 @@ export default function WeeklyReportPage() {
   const renderPeriods = () => {
     const periods = tab === 'weekly' ? weekPeriods : tab === 'monthly' ? monthPeriods : yearPeriods
 
-    return periods.map(({ start, end }) => {
+    return periods.map(({ start, end: _end }) => {
       const periodStart = format(start, 'yyyy-MM-dd')
       const key = `${tab}:${periodStart}`
       const report = reportMap[key]
