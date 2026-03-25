@@ -18,7 +18,7 @@ interface Trade {
   exitPrice?: number
   stopLoss?: number
   targetPrice?: number
-  enteredAt: string
+  enteredAt?: string
   exitedAt?: string
   netPnl?: number
 }
@@ -110,7 +110,7 @@ export default function TradeReplayModal({ trade, onClose }: Props) {
     // Compute full price range from all bars + price lines so the axis stays stable during replay
     const allLows  = bars.map(b => b.low)
     const allHighs = bars.map(b => b.high)
-    const pricePoints = [...allLows, ...allHighs, trade.entryPrice]
+    const pricePoints: number[] = [...allLows, ...allHighs, ...(trade.entryPrice !== undefined ? [trade.entryPrice] : [])]
     if (trade.stopLoss)    pricePoints.push(trade.stopLoss)
     if (trade.targetPrice) pricePoints.push(trade.targetPrice)
     if (trade.exitPrice)   pricePoints.push(trade.exitPrice)
@@ -132,7 +132,7 @@ export default function TradeReplayModal({ trade, onClose }: Props) {
 
     // Price lines
     series.createPriceLine({
-      price: trade.entryPrice,
+      price: trade.entryPrice ?? 0,
       color: '#00D49C',
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
@@ -183,7 +183,7 @@ export default function TradeReplayModal({ trade, onClose }: Props) {
 
   // Update chart as playIndex changes
   useEffect(() => {
-    if (!seriesRef.current || bars.length === 0) return
+    if (!seriesRef.current || bars.length === 0 || !trade.enteredAt) return
 
     seriesRef.current.setData(bars.slice(0, playIndex + 1).map((b: Bar) => ({ ...b, time: b.time as any })))
 
