@@ -1,4 +1,10 @@
 services:
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  - type: redis
+    name: zone-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+
   # ── Rails API ────────────────────────────────────────────────────────────────
   - type: web
     name: zone-api
@@ -126,8 +132,4 @@ databases:
   - name: zone-db
     databaseName: zone_production
     user: zone
-
-  - name: zone-redis
-    type: redis
     plan: free
-    maxmemoryPolicy: noeviction
