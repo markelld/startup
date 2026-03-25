@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@apollo/client'
 import { GENERATE_OVERALL_REPORT } from '../../lib/graphql/mutations'
 import { LIST_REPORTS } from '../../lib/graphql/queries'
-import { format, getDay, endOfMonth, endOfYear, addDays, startOfWeek, isAfter } from 'date-fns'
+import { format, getDay, endOfMonth, endOfYear, addDays } from 'date-fns'
 
 function nextRefreshDate(now: Date): Date {
   // Next Friday

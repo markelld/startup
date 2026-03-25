@@ -238,8 +238,7 @@ function AddTradeModal({ date, onClose, onSaved }: { date: string; onClose: () =
 }
 
 // ── Trade Card ────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function TradeCard({ trade, onUpdated }: { trade: any; onUpdated: () => void }) {
+export function TradeCard({ trade, onUpdated }: { trade: any; onUpdated: () => void }) {
   const [editing, setEditing] = useState(false)
   const [notes, setNotes] = useState(trade.notes || '')
   const [emotion, setEmotion] = useState(trade.emotion || '')

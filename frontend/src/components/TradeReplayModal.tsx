@@ -14,7 +14,7 @@ interface Trade {
   id: string
   instrument: string
   side: string
-  entryPrice: number
+  entryPrice?: number
   exitPrice?: number
   stopLoss?: number
   targetPrice?: number
@@ -49,8 +49,6 @@ export default function TradeReplayModal({ trade, onClose }: Props) {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [barInterval, setBarInterval] = useState('1m')
-  const [selectedInterval, setSelectedInterval] = useState<string | null>(null)
-
   const fetchBars = (interval: string | null) => {
     if (!trade.enteredAt) return
     setLoading(true)
@@ -272,7 +270,6 @@ export default function TradeReplayModal({ trade, onClose }: Props) {
               <button
                 key={iv}
                 onClick={() => {
-                  setSelectedInterval(iv)
                   fetchBars(iv)
                 }}
                 className={`text-xs px-2 py-1 rounded transition-colors ${
