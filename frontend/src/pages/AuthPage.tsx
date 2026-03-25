@@ -122,7 +122,7 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-surface-900 flex items-start md:items-center justify-center p-6 pt-10 md:pt-6">
       <div className="card max-w-sm w-full space-y-6">
         <div className="text-center">
           <div className="w-12 h-12 bg-green rounded-xl flex items-center justify-center mx-auto mb-4">
