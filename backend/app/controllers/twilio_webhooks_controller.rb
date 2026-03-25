@@ -1,6 +1,4 @@
 class TwilioWebhooksController < ApplicationController
-  skip_before_action :verify_authenticity_token
-
   def inbound
     # Validate the request came from Twilio
     unless valid_twilio_request?
