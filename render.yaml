@@ -34,17 +34,11 @@ services:
         generateValue: true
       - key: DEVISE_JWT_SECRET_KEY
         generateValue: true
+      - key: BETA_MODE
+        value: "true"
       - key: ATTR_ENCRYPTED_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: STRIPE_PRICE_ID
-        sync: false
-      - key: STRIPE_PUBLISHABLE_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
@@ -88,9 +82,9 @@ services:
           name: zone-api
           type: web
           envVarKey: DEVISE_JWT_SECRET_KEY
+      - key: BETA_MODE
+        value: "true"
       - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: STRIPE_SECRET_KEY
         sync: false
       - key: TWILIO_ACCOUNT_SID
         sync: false

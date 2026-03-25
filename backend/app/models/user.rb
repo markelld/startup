@@ -19,6 +19,7 @@ class User < ApplicationRecord
   end
 
   def active_or_trialing?
+    return true if ENV['BETA_MODE'] == 'true'
     subscription&.active_or_trialing? || false
   end
 end
