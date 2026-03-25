@@ -255,7 +255,7 @@ export const SESSION_ANALYTICS = gql`
       stopDiscipline
       tradeManagement
       earlyExitRate
-      revengeTradCount
+      revengeTradeCount
       behavioralFlags
       timeOfDayBreakdown
       rDistribution

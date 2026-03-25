@@ -31,12 +31,19 @@ class CsvImportService
     case @platform
     when 'tradovate'
       @detected_platform = 'tradovate'
-      import_tradovate_rows(rows)
+      if tradovate_orders_format?(headers)
+        import_tradovate_order_rows(rows)
+      else
+        import_tradovate_rows(rows)
+      end
     when 'tradingview'
       @detected_platform = 'tradingview'
       import_tradingview_orders(rows)
     else
-      if tradovate_format?(headers)
+      if tradovate_orders_format?(headers)
+        @detected_platform = 'tradovate'
+        import_tradovate_order_rows(rows)
+      elsif tradovate_format?(headers)
         @detected_platform = 'tradovate'
         import_tradovate_rows(rows)
       elsif tradingview_order_format?(headers)
@@ -65,6 +72,11 @@ class CsvImportService
 
   def tradovate_format?(headers)
     headers.include?('buyprice') || headers.include?('boughttimestamp')
+  end
+
+  # Tradovate orders export: Symbol, Side, Type, Qty, Avg Fill Price, Status, Update Time, Order ID
+  def tradovate_orders_format?(headers)
+    headers.include?('avg fill price') && headers.include?('update time') && headers.include?('order id')
   end
 
   # TradingView order history: Symbol, Side, Type, Fill Price, Status, Placing Time, Closing Time
@@ -161,6 +173,121 @@ class CsvImportService
   def parse_tradovate_duration(raw)
     return nil unless raw
     raw.to_s.match(/(\d+)min/)&.captures&.first.to_i
+  end
+
+  # ── Tradovate orders export parser ────────────────────────────────────────────
+  # Columns: Symbol, Side, Type, Qty, Remaining Qty, Filled Qty, Limit Price,
+  #          Stop Price, Take Profit, Stop Loss, Avg Fill Price, Status,
+  #          Update Time, Order ID, Expiry, Expiry Time
+  #
+  # Strategy: FIFO position tracker using Filled orders sorted by Update Time.
+  # Market orders open positions; Stop Loss / Take Profit / Market orders close.
+  # Cancelled orders adjacent to entry capture stop_loss / target_price.
+
+  def import_tradovate_order_rows(rows)
+    sessions = {}
+
+    # Build a map of pending OCO prices keyed by symbol — carries forward from
+    # the most recent entry order so we can attach to the next closing trade.
+    pending_stops   = {}  # symbol => stop_price
+    pending_targets = {}  # symbol => target_price
+
+    filled = rows.select { |r| r['status'].to_s.strip.downcase == 'filled' }
+    filled.sort_by! { |r| parse_tv_time(r['update time']) || DateTime.new(0) }
+
+    # Scan cancelled orders to extract stop/target prices keyed by order id order
+    rows.each do |r|
+      next unless r['status'].to_s.strip.downcase == 'cancelled'
+      symbol     = r['symbol'].to_s.strip.upcase.gsub(/M\d+$/, '')
+      order_type = r['type'].to_s.strip.downcase
+      stop_p     = parse_float(r['stop price'])
+      limit_p    = parse_float(r['limit price'])
+      pending_stops[symbol]   = stop_p  if order_type == 'stop loss'  && stop_p
+      pending_targets[symbol] = limit_p if order_type == 'take profit' && limit_p
+    end
+
+    positions = {}  # symbol => { side:, qty:, price:, time:, stop_loss:, target_price: }
+
+    filled.each do |row|
+      raw_symbol  = row['symbol'].to_s.strip.upcase
+      symbol      = raw_symbol.gsub(/M\d+$/, '')   # MNQM6 → MNQ
+      fill_side   = row['side'].to_s.strip.downcase   # 'buy' or 'sell'
+      order_type  = row['type'].to_s.strip.downcase
+      qty         = parse_int(row['filled qty'].presence || row['qty']) || 0
+      fill_price  = parse_float(row['avg fill price'])
+      fill_time   = parse_tv_time(row['update time'])
+      order_id    = row['order id'].to_s.strip
+
+      next if fill_price.nil? || fill_time.nil? || qty.zero?
+
+      trade_side = fill_side == 'buy' ? 'long' : 'short'
+      pos = positions[symbol]
+
+      if pos.nil?
+        # Opening new position
+        positions[symbol] = {
+          side: trade_side, qty: qty, price: fill_price, time: fill_time,
+          stop_loss: pending_stops.delete(symbol),
+          target_price: pending_targets.delete(symbol),
+          order_id: order_id
+        }
+      elsif pos[:side] != trade_side
+        # Closing (or reversing) existing position
+        close_qty = [qty, pos[:qty]].min
+        pv        = point_value(symbol)
+        dir       = pos[:side] == 'long' ? 1 : -1
+        raw_pnl   = (fill_price - pos[:price]) * close_qty * pv * dir
+        rate       = PLATFORM_COMMISSIONS.fetch('tradovate', @account.commission_per_contract.to_f)
+        commission = rate * close_qty * 2
+        net_pnl    = (raw_pnl - commission).round(2)
+
+        date     = pos[:time].to_date
+        session  = sessions[date] ||= find_or_create_session(date)
+        duration = ((fill_time - pos[:time]) / 60).round rescue nil
+
+        broker_trade_id = "tv-orders-#{pos[:order_id]}-#{order_id}"
+        trade = @account.trades.find_or_initialize_by(broker_trade_id: broker_trade_id)
+        trade.assign_attributes(
+          trading_session:  session,
+          instrument:       raw_symbol,
+          side:             pos[:side],
+          quantity:         close_qty,
+          entry_price:      pos[:price],
+          exit_price:       fill_price,
+          net_pnl:          net_pnl,
+          stop_loss:        pos[:stop_loss],
+          target_price:     pos[:target_price],
+          entered_at:       pos[:time],
+          exited_at:        fill_time,
+          duration_minutes: duration,
+          status:           :closed
+        )
+
+        if trade.save
+          @trades_imported += 1
+        else
+          @errors << "#{raw_symbol} trade: #{trade.errors.full_messages.join(', ')}"
+        end
+
+        remaining = qty - pos[:qty]
+        positions[symbol] = remaining > 0 ? {
+          side: trade_side, qty: remaining, price: fill_price, time: fill_time,
+          stop_loss: pending_stops.delete(symbol),
+          target_price: pending_targets.delete(symbol),
+          order_id: order_id
+        } : nil
+      else
+        # Same direction — update position (scaling in simplified)
+        positions[symbol] = {
+          side: trade_side, qty: qty, price: fill_price, time: fill_time,
+          stop_loss: pending_stops.delete(symbol),
+          target_price: pending_targets.delete(symbol),
+          order_id: order_id
+        }
+      end
+    end
+
+    sessions.values.each { |s| s.update_column(:net_pnl, s.trades.where(status: :closed).sum(:net_pnl)) }
   end
 
   # ── TradingView order history parser ─────────────────────────────────────────

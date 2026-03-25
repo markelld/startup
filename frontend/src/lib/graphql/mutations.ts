@@ -253,6 +253,15 @@ export const DELETE_ACCOUNT = gql`
   }
 `
 
+export const DELETE_TRADE = gql`
+  mutation DeleteTrade($id: ID!) {
+    deleteTrade(input: { id: $id }) {
+      success
+      errors
+    }
+  }
+`
+
 export const IMPORT_CSV = gql`
   mutation ImportCsv($accountId: ID!, $csvData: String!, $platform: String) {
     importCsv(input: { accountId: $accountId, csvData: $csvData, platform: $platform }) {
@@ -271,6 +280,15 @@ export const SAVE_TRADING_PLAN = gql`
         rules
         weeklyIntention
       }
+      errors
+    }
+  }
+`
+
+export const CHANGE_PASSWORD = gql`
+  mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+    changePassword(input: { currentPassword: $currentPassword, newPassword: $newPassword }) {
+      success
       errors
     }
   }

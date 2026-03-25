@@ -22,5 +22,7 @@ module Types
     field :import_csv, mutation: Mutations::ImportCsv
     field :update_user_settings, mutation: Mutations::UpdateUserSettings
     field :save_trading_plan, mutation: Mutations::SaveTradingPlan
+    field :change_password,   mutation: Mutations::ChangePassword
+    field :delete_trade,      mutation: Mutations::DeleteTrade
   end
 end

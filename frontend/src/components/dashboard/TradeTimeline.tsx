@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useApolloClient } from '@apollo/client'
+import { useApolloClient, useMutation } from '@apollo/client'
 import { format } from 'date-fns'
 import TradeDetailModal from '../TradeDetailModal'
 import { PAGINATED_TRADES } from '../../lib/graphql/queries'
+import { DELETE_TRADE } from '../../lib/graphql/mutations'
 
 const PAGE_SIZE = 5
 
@@ -46,9 +47,19 @@ export default function TradeTimeline({ accountId }: { accountId?: string }) {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Trade | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef(0)
   const loadingRef = useRef(false)
+
+  const [deleteTrade] = useMutation(DELETE_TRADE, {
+    onCompleted: (data) => {
+      if (data.deleteTrade.success) {
+        setTrades(prev => prev.filter(t => t.id !== confirmDeleteId))
+        setConfirmDeleteId(null)
+      }
+    },
+  })
 
   const fetchMore = useCallback(async () => {
     if (loadingRef.current) return
@@ -109,18 +120,17 @@ export default function TradeTimeline({ accountId }: { accountId?: string }) {
             <p className="text-center text-gray-500 text-sm py-6">No trades recorded yet</p>
           )}
           {trades.map((trade) => (
-            <button
+            <div
               key={trade.id}
-              onClick={() => setSelected(trade)}
-              className="w-full flex items-center justify-between p-3 bg-surface-50 hover:bg-surface-100 rounded-lg border border-border transition-colors text-left group"
+              className="w-full flex items-center justify-between p-3 bg-surface-50 hover:bg-surface-100 rounded-lg border border-border transition-colors group"
             >
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${
+              <button onClick={() => setSelected(trade)} className="flex items-center gap-3 flex-1 text-left min-w-0">
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border shrink-0 ${
                   trade.side === 'long' ? 'text-green border-green/20 bg-green/10' : 'text-red border-red/20 bg-red/10'
                 }`}>
                   {trade.side?.toUpperCase()}
                 </span>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white">{trade.instrument}</span>
                     <span className="text-xs text-gray-400">{trade.quantity}x</span>
@@ -133,8 +143,8 @@ export default function TradeTimeline({ accountId }: { accountId?: string }) {
                     {trade.durationMinutes ? ` · ${trade.durationMinutes}m` : ''}
                   </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-3">
+              </button>
+              <div className="flex items-center gap-3 shrink-0">
                 {trade.grade && (
                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${GRADE_COLORS[trade.grade] || 'text-gray-400'}`}>
                     {trade.grade}
@@ -143,9 +153,31 @@ export default function TradeTimeline({ accountId }: { accountId?: string }) {
                 <span className={`font-mono text-sm font-semibold ${(trade.netPnl ?? 0) >= 0 ? 'text-green' : 'text-red'}`}>
                   {(trade.netPnl ?? 0) >= 0 ? '+' : ''}${(trade.netPnl ?? 0).toFixed(2)}
                 </span>
-                <span className="text-gray-600 group-hover:text-gray-400 transition-colors text-xs">›</span>
+                {confirmDeleteId === trade.id ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-400">Delete?</span>
+                    <button
+                      onClick={() => deleteTrade({ variables: { id: trade.id } })}
+                      className="text-xs px-2 py-0.5 bg-red/20 text-red rounded hover:bg-red/30"
+                    >Yes</button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-xs px-2 py-0.5 bg-surface-200 text-gray-400 rounded hover:text-white"
+                    >No</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(trade.id)}
+                    className="text-gray-600 hover:text-red transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete trade"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                  </button>
+                )}
               </div>
-            </button>
+            </div>
           ))}
 
           <div className="py-1 flex justify-center">
