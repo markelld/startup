@@ -761,9 +761,26 @@
   .lp-how-steps { grid-template-columns: 1fr 1fr; gap: 40px; }
   .lp-how-steps::before { display: none; }
 }
+.lp-nav-mobile-auth { display: none; }
+
 @media (max-width: 768px) {
   .lp-nav { padding: 16px 24px; }
   .lp-nav-links { display: none; }
+  .lp-nav-mobile-auth {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lp-nav-mobile-signin {
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    transition: color .2s;
+  }
+  .lp-nav-mobile-signin:hover { color: var(--text); }
   .lp-hero { padding: 120px 24px 80px; }
   .lp-hero-stats { gap: 28px; flex-wrap: wrap; }
   .lp-values-grid { grid-template-columns: 1fr; }

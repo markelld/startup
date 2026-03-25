@@ -44,6 +44,12 @@ export default function LandingPage() {
           <div className="lp-nav-logo-mark">z</div>
           <span className="lp-nav-logo-text">zone</span>
         </a>
+        {/* Mobile-only auth buttons */}
+        <div className="lp-nav-mobile-auth">
+          <Link to="/auth" className="lp-nav-mobile-signin">Sign in</Link>
+          <Link to="/auth?mode=signup" className="lp-nav-cta">Sign up</Link>
+        </div>
+
         <ul className="lp-nav-links">
           <li><a href="#values">Values</a></li>
           <li><a href="#features">Features</a></li>
