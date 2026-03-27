@@ -178,7 +178,7 @@ export default function DashboardPage() {
           <div className="text-4xl mb-2">📊</div>
           <h2 className="text-lg font-semibold text-white">No accounts yet</h2>
           <p className="text-sm text-gray-400 max-w-xs">
-            Import your Tradovate trade history to get started
+            Import your trade history to get started
           </p>
           <button
             onClick={() => setShowImportModal('new')}

@@ -179,6 +179,7 @@ export default function ImportAccountModal({ onClose, onSuccess, accountId }: Pr
                   const val = e.target.value
                   setPlatform(val)
                   if (val === 'tradovate') setFirmName('Tradovate')
+                  else if (val === 'topstep') setFirmName('Topstep')
                   else if (val === 'tradingview') setFirmName('TradingView')
                   else setFirmName('Other')
                 }}
@@ -186,6 +187,7 @@ export default function ImportAccountModal({ onClose, onSuccess, accountId }: Pr
               >
                 <option value="auto">Auto-detect</option>
                 <option value="tradovate">Tradovate</option>
+                <option value="topstep">Topstep</option>
                 <option value="tradingview">TradingView</option>
               </select>
             </div>
@@ -240,6 +242,7 @@ export default function ImportAccountModal({ onClose, onSuccess, accountId }: Pr
           <div className="space-y-4">
             <p className="text-sm text-gray-400 leading-relaxed">
               {platform === 'tradovate' && 'Export from Tradovate → Performance → Trade History → Export CSV'}
+              {platform === 'topstep' && 'Export from Topstep → Trade History → Export'}
               {platform === 'tradingview' && 'Export from TradingView → List of Trades → Export'}
               {platform === 'auto' && 'Upload your CSV — the format will be detected automatically.'}
             </p>
