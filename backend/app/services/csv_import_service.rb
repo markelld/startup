@@ -36,11 +36,17 @@ class CsvImportService
       else
         import_tradovate_rows(rows)
       end
+    when 'topstep'
+      @detected_platform = 'topstep'
+      import_topstep_rows(rows)
     when 'tradingview'
       @detected_platform = 'tradingview'
       import_tradingview_orders(rows)
     else
-      if tradovate_orders_format?(headers)
+      if topstep_format?(headers)
+        @detected_platform = 'topstep'
+        import_topstep_rows(rows)
+      elsif tradovate_orders_format?(headers)
         @detected_platform = 'tradovate'
         import_tradovate_order_rows(rows)
       elsif tradovate_format?(headers)
@@ -82,6 +88,11 @@ class CsvImportService
   # TradingView order history: Symbol, Side, Type, Fill Price, Status, Placing Time, Closing Time
   def tradingview_order_format?(headers)
     headers.include?('fill price') && headers.include?('placing time') && headers.include?('closing time')
+  end
+
+  # Topstep trade export: Id, ContractName, EnteredAt, ExitedAt, EntryPrice, ExitPrice, Fees, PnL, Size, Type
+  def topstep_format?(headers)
+    headers.include?('contractname') && headers.include?('enteredat') && headers.include?('exitedat')
   end
 
   def has_both_entry_and_exit?(headers)
@@ -288,6 +299,81 @@ class CsvImportService
     end
 
     sessions.values.each { |s| s.update_column(:net_pnl, s.trades.where(status: :closed).sum(:net_pnl)) }
+  end
+
+  # ── Topstep trade export parser ───────────────────────────────────────────────
+  # Columns: Id, ContractName, EnteredAt, ExitedAt, EntryPrice, ExitPrice,
+  #          Fees, PnL, Size, Type, TradeDay, TradeDuration, Commissions
+  #
+  # Each row is a complete closed trade. PnL is gross; net = PnL - Fees.
+  # Time format: "03/01/2026 18:03:07 -05:00"
+
+  def import_topstep_rows(rows)
+    sessions = {}
+
+    rows.each_with_index do |row, idx|
+      begin
+        instrument = row['contractname'].to_s.strip.upcase
+        next if instrument.blank?
+
+        side       = row['type'].to_s.strip.downcase == 'long' ? 'long' : 'short'
+        qty        = row['size'].to_s.strip.to_i
+        entry_p    = parse_float(row['entryprice'])
+        exit_p     = parse_float(row['exitprice'])
+        gross_pnl  = parse_float(row['pnl']) || 0.0
+        fees       = parse_float(row['fees']) || 0.0
+        entered_at = parse_topstep_time(row['enteredat'])
+        exited_at  = parse_topstep_time(row['exitedat'])
+        duration   = parse_topstep_duration(row['tradeduration'])
+        trade_id   = row['id'].to_s.strip
+
+        next if entry_p.nil? || exit_p.nil? || entered_at.nil?
+
+        net_pnl = (gross_pnl - fees).round(2)
+        date    = entered_at.to_date
+        session = sessions[date] ||= find_or_create_session(date)
+
+        broker_trade_id = "topstep-#{trade_id}"
+        trade = @account.trades.find_or_initialize_by(broker_trade_id: broker_trade_id)
+        trade.assign_attributes(
+          trading_session:  session,
+          instrument:       instrument,
+          side:             side,
+          quantity:         qty,
+          entry_price:      entry_p,
+          exit_price:       exit_p,
+          net_pnl:          net_pnl,
+          entered_at:       entered_at,
+          exited_at:        exited_at || entered_at,
+          duration_minutes: duration,
+          status:           :closed
+        )
+
+        if trade.save
+          @trades_imported += 1
+        else
+          @errors << "Row #{idx + 2}: #{trade.errors.full_messages.join(', ')}"
+        end
+      rescue => e
+        @errors << "Row #{idx + 2} skipped: #{e.message}"
+      end
+    end
+
+    sessions.values.each { |s| s.update_column(:net_pnl, s.trades.where(status: :closed).sum(:net_pnl)) }
+  end
+
+  def parse_topstep_time(raw)
+    return nil unless raw
+    DateTime.parse(raw.to_s.strip)
+  rescue ArgumentError, TypeError
+    nil
+  end
+
+  def parse_topstep_duration(raw)
+    return nil unless raw
+    m = raw.to_s.strip.match(/^(\d+):(\d+):(\d+)/)
+    return nil unless m
+    m[1].to_i * 60 + m[2].to_i + (m[3].to_i > 30 ? 1 : 0)
   end
 
   # ── TradingView order history parser ─────────────────────────────────────────
