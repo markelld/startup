@@ -81,6 +81,11 @@ export default function TradeDetailModal({ trade, onClose, onSaved, initialEditi
   const [emotion, setEmotion] = useState(trade.emotion || '')
   const [stopLoss, setStopLoss] = useState(trade.stopLoss?.toString() || '')
   const [targetPrice, setTargetPrice] = useState(trade.targetPrice?.toString() || '')
+  const [entryPrice, setEntryPrice] = useState(trade.entryPrice?.toString() || '')
+  const [exitPrice, setExitPrice] = useState(trade.exitPrice?.toString() || '')
+  const [quantity, setQuantity] = useState(trade.quantity?.toString() || '')
+  const [side, setSide] = useState(trade.side || 'long')
+  const [netPnl, setNetPnl] = useState(trade.netPnl?.toString() || '')
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(trade.screenshotUrl || null)
   const [uploading, setUploading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -97,8 +102,13 @@ export default function TradeDetailModal({ trade, onClose, onSaved, initialEditi
       onSaved?.({
         notes,
         emotion,
-        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
+        stopLoss:    stopLoss    ? parseFloat(stopLoss)    : undefined,
         targetPrice: targetPrice ? parseFloat(targetPrice) : undefined,
+        entryPrice:  entryPrice  ? parseFloat(entryPrice)  : undefined,
+        exitPrice:   exitPrice   ? parseFloat(exitPrice)   : undefined,
+        quantity:    quantity    ? parseInt(quantity)      : undefined,
+        side,
+        netPnl:      netPnl      ? parseFloat(netPnl)      : undefined,
       })
     },
     onError: (e) => setSaveError(e.message),
@@ -107,11 +117,16 @@ export default function TradeDetailModal({ trade, onClose, onSaved, initialEditi
   const handleSave = () => {
     updateJournal({
       variables: {
-        id: trade.id,
+        id:          trade.id,
         notes,
         emotion,
-        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
+        stopLoss:    stopLoss    ? parseFloat(stopLoss)    : undefined,
         targetPrice: targetPrice ? parseFloat(targetPrice) : undefined,
+        entryPrice:  entryPrice  ? parseFloat(entryPrice)  : undefined,
+        exitPrice:   exitPrice   ? parseFloat(exitPrice)   : undefined,
+        quantity:    quantity    ? parseInt(quantity)      : undefined,
+        side,
+        netPnl:      netPnl      ? parseFloat(netPnl)      : undefined,
       },
     })
   }
@@ -121,6 +136,11 @@ export default function TradeDetailModal({ trade, onClose, onSaved, initialEditi
     setEmotion(trade.emotion || '')
     setStopLoss(trade.stopLoss?.toString() || '')
     setTargetPrice(trade.targetPrice?.toString() || '')
+    setEntryPrice(trade.entryPrice?.toString() || '')
+    setExitPrice(trade.exitPrice?.toString() || '')
+    setQuantity(trade.quantity?.toString() || '')
+    setSide(trade.side || 'long')
+    setNetPnl(trade.netPnl?.toString() || '')
     setSaveError(null)
     setEditing(false)
   }
@@ -244,37 +264,84 @@ export default function TradeDetailModal({ trade, onClose, onSaved, initialEditi
                 </div>
               </div>
 
-              {/* Stop / Target — CSV imports won't have these */}
-              {(!trade.stopLoss || !trade.targetPrice) && (
+              {/* Trade prices */}
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Trade Details</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {!trade.stopLoss && (
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1.5 block">Stop Loss</label>
-                      <input
-                        type="number"
-                        step="0.25"
-                        value={stopLoss}
-                        onChange={e => setStopLoss(e.target.value)}
-                        placeholder={`e.g. ${trade.entryPrice ? (trade.side === 'long' ? (trade.entryPrice - 10).toFixed(2) : (trade.entryPrice + 10).toFixed(2)) : '—'}`}
-                        className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
-                      />
-                    </div>
-                  )}
-                  {!trade.targetPrice && (
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1.5 block">Target Price</label>
-                      <input
-                        type="number"
-                        step="0.25"
-                        value={targetPrice}
-                        onChange={e => setTargetPrice(e.target.value)}
-                        placeholder={`e.g. ${trade.entryPrice ? (trade.side === 'long' ? (trade.entryPrice + 20).toFixed(2) : (trade.entryPrice - 20).toFixed(2)) : '—'}`}
-                        className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Side</label>
+                    <select
+                      value={side}
+                      onChange={e => setSide(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green/40 transition-colors"
+                    >
+                      <option value="long">Long</option>
+                      <option value="short">Short</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={quantity}
+                      onChange={e => setQuantity(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Entry Price</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={entryPrice}
+                      onChange={e => setEntryPrice(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Exit Price</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={exitPrice}
+                      onChange={e => setExitPrice(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Stop Loss</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={stopLoss}
+                      onChange={e => setStopLoss(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Target Price</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={targetPrice}
+                      onChange={e => setTargetPrice(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-gray-500 mb-1.5 block">Net P&amp;L ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={netPnl}
+                      onChange={e => setNetPnl(e.target.value)}
+                      className="w-full bg-surface-100 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green/40 transition-colors"
+                    />
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Notes textarea */}
               <div>

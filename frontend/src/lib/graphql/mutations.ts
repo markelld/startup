@@ -74,8 +74,16 @@ export const SYNC_TRADES = gql`
 `
 
 export const UPDATE_TRADE_JOURNAL = gql`
-  mutation UpdateTradeJournal($id: ID!, $notes: String, $emotion: String, $screenshotUrl: String, $stopLoss: Float, $targetPrice: Float) {
-    updateTradeJournal(input: { id: $id, notes: $notes, emotion: $emotion, screenshotUrl: $screenshotUrl, stopLoss: $stopLoss, targetPrice: $targetPrice }) {
+  mutation UpdateTradeJournal(
+    $id: ID!, $notes: String, $emotion: String, $screenshotUrl: String,
+    $stopLoss: Float, $targetPrice: Float,
+    $entryPrice: Float, $exitPrice: Float, $quantity: Int, $side: String, $netPnl: Float
+  ) {
+    updateTradeJournal(input: {
+      id: $id, notes: $notes, emotion: $emotion, screenshotUrl: $screenshotUrl,
+      stopLoss: $stopLoss, targetPrice: $targetPrice,
+      entryPrice: $entryPrice, exitPrice: $exitPrice, quantity: $quantity, side: $side, netPnl: $netPnl
+    }) {
       trade {
         id
         notes
@@ -83,6 +91,11 @@ export const UPDATE_TRADE_JOURNAL = gql`
         screenshotUrl
         stopLoss
         targetPrice
+        entryPrice
+        exitPrice
+        quantity
+        side
+        netPnl
       }
       errors
     }
