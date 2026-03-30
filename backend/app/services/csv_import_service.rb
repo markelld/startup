@@ -478,9 +478,12 @@ class CsvImportService
 
   def parse_topstep_time(raw)
     return nil unless raw
-    DateTime.parse(raw.to_s.strip)
-  rescue ArgumentError, TypeError
-    nil
+    str = raw.to_s.strip
+    # Topstep format: "03/30/2026 09:46:43 -04:00"
+    DateTime.strptime(str, '%m/%d/%Y %H:%M:%S %z')
+  rescue ArgumentError, TypeError, Date::Error
+    # Fallback for any other format variation
+    DateTime.parse(str) rescue nil
   end
 
   def parse_topstep_duration(raw)
