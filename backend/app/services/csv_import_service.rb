@@ -445,23 +445,38 @@ class CsvImportService
         date      = pos[:time].to_date
         session   = sessions[date] ||= find_or_create_session(date)
 
-        broker_trade_id = "topstep-orders-#{instrument}-#{pos[:time].to_i}-#{fill_time.to_i}"
-        trade = @account.trades.find_or_initialize_by(broker_trade_id: broker_trade_id)
-        trade.assign_attributes(
-          trading_session:  session,
-          instrument:       instrument,
-          side:             pos[:side],
-          quantity:         pos[:qty],
-          entry_price:      pos[:price],
-          exit_price:       fill_price,
-          net_pnl:          net_pnl,
-          stop_loss:        pos[:stop_loss],
-          target_price:     pos[:target_price],
-          entered_at:       pos[:time],
-          exited_at:        fill_time,
-          duration_minutes: duration,
-          status:           :closed
-        )
+        # Try to match an existing trade imported from the trades CSV
+        # (same instrument, side, entry price, and entry time within 1 minute)
+        pos_time_i = pos[:time].to_time.to_i
+        trade = @account.trades.where(
+          instrument:  instrument,
+          side:        pos[:side],
+          entry_price: pos[:price]
+        ).find { |t| t.entered_at && (t.entered_at.to_i - pos_time_i).abs < 60 }
+
+        if trade
+          # Enrich existing trade with stop/target from orders CSV
+          trade.stop_loss    = pos[:stop_loss]    if pos[:stop_loss]
+          trade.target_price = pos[:target_price] if pos[:target_price]
+        else
+          broker_trade_id = "topstep-orders-#{instrument}-#{pos[:time].to_i}-#{fill_time.to_i}"
+          trade = @account.trades.find_or_initialize_by(broker_trade_id: broker_trade_id)
+          trade.assign_attributes(
+            trading_session:  session,
+            instrument:       instrument,
+            side:             pos[:side],
+            quantity:         pos[:qty],
+            entry_price:      pos[:price],
+            exit_price:       fill_price,
+            net_pnl:          net_pnl,
+            entered_at:       pos[:time],
+            exited_at:        fill_time,
+            duration_minutes: duration,
+            status:           :closed
+          )
+          trade.stop_loss    = pos[:stop_loss]
+          trade.target_price = pos[:target_price]
+        end
 
         if trade.save
           @trades_imported += 1
