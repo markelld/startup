@@ -359,3 +359,21 @@ export const CREATE_TRADE = gql`
     }
   }
 `
+
+export const FORGOT_PASSWORD = gql`
+  mutation ForgotPassword($email: String!) {
+    forgotPassword(email: $email) {
+      success
+      errors
+    }
+  }
+`
+
+export const RESET_PASSWORD = gql`
+  mutation ResetPassword($token: String!, $password: String!) {
+    resetPassword(token: $token, password: $password) {
+      success
+      errors
+    }
+  }
+`

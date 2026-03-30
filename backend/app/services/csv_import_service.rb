@@ -38,12 +38,19 @@ class CsvImportService
       end
     when 'topstep'
       @detected_platform = 'topstep'
-      import_topstep_rows(rows)
+      if topstep_orders_format?(headers)
+        import_topstep_order_rows(rows)
+      else
+        import_topstep_rows(rows)
+      end
     when 'tradingview'
       @detected_platform = 'tradingview'
       import_tradingview_orders(rows)
     else
-      if topstep_format?(headers)
+      if topstep_orders_format?(headers)
+        @detected_platform = 'topstep'
+        import_topstep_order_rows(rows)
+      elsif topstep_format?(headers)
         @detected_platform = 'topstep'
         import_topstep_rows(rows)
       elsif tradovate_orders_format?(headers)
@@ -93,6 +100,14 @@ class CsvImportService
   # Topstep trade export: Id, ContractName, EnteredAt, ExitedAt, EntryPrice, ExitPrice, Fees, PnL, Size, Type
   def topstep_format?(headers)
     headers.include?('contractname') && headers.include?('enteredat') && headers.include?('exitedat')
+  end
+
+  # Topstep orders export: Id, AccountName, ContractName, Status, Type, Size, Side,
+  #   CreatedAt, TradeDay, FilledAt, CancelledAt, StopPrice, LimitPrice, ExecutePrice,
+  #   PositionDisposition, CreationDisposition, ...
+  def topstep_orders_format?(headers)
+    headers.include?('contractname') && headers.include?('positiondisposition') &&
+      headers.include?('creationdisposition') && headers.include?('executeprice')
   end
 
   def has_both_entry_and_exit?(headers)
@@ -356,6 +371,105 @@ class CsvImportService
         end
       rescue => e
         @errors << "Row #{idx + 2} skipped: #{e.message}"
+      end
+    end
+
+    sessions.values.each { |s| s.update_column(:net_pnl, s.trades.where(status: :closed).sum(:net_pnl)) }
+  end
+
+  # ── Topstep orders export parser ─────────────────────────────────────────────
+  # Columns: Id, AccountName, ContractName, Status, Type, Size, Side, CreatedAt,
+  #   TradeDay, FilledAt, CancelledAt, StopPrice, LimitPrice, ExecutePrice,
+  #   PositionDisposition, CreationDisposition, ...
+  #
+  # Strategy: build an OCO map from cancelled StopLoss/TakeProfit orders keyed by
+  # "symbol:createdat", then FIFO-match filled Opening orders to Closing orders.
+  # Side: Ask = sell (short entry / long exit), Bid = buy (long entry / short exit)
+
+  def import_topstep_order_rows(rows)
+    sessions = {}
+
+    # Build stop/target map from cancelled OCO orders
+    oco_map = {}
+    rows.each do |row|
+      next unless row['status'].to_s.strip.downcase == 'cancelled'
+      instrument  = row['contractname'].to_s.strip.upcase
+      created_str = row['createdat'].to_s.strip
+      key         = "#{instrument}:#{created_str}"
+      oco_map[key] ||= {}
+      disp  = row['creationdisposition'].to_s.strip.downcase
+      stop_p  = parse_float(row['stopprice'])
+      limit_p = parse_float(row['limitprice'])
+      oco_map[key][:stop_loss]    = stop_p  if disp == 'stoploss'   && stop_p
+      oco_map[key][:target_price] = limit_p if disp == 'takeprofit' && limit_p
+    end
+
+    # Only process filled orders sorted by fill time
+    filled = rows.select { |r| r['status'].to_s.strip.downcase == 'filled' }
+    filled.sort_by! { |r| parse_topstep_time(r['filledat'].presence || r['createdat']) || DateTime.new(0) }
+
+    positions = {}  # instrument => { side:, qty:, price:, time:, created_str:, stop_loss:, target_price: }
+
+    filled.each do |row|
+      instrument  = row['contractname'].to_s.strip.upcase
+      next if instrument.blank?
+
+      pos_disp    = row['positiondisposition'].to_s.strip.downcase
+      order_side  = row['side'].to_s.strip.downcase  # 'ask' (sell) or 'bid' (buy)
+      qty         = row['size'].to_s.strip.to_i
+      fill_price  = parse_float(row['executeprice'])
+      fill_time   = parse_topstep_time(row['filledat'].presence || row['createdat'])
+      created_str = row['createdat'].to_s.strip
+
+      next if fill_price.nil? || fill_time.nil? || qty.zero?
+
+      if pos_disp == 'opening'
+        trade_side = order_side == 'ask' ? 'short' : 'long'
+        oco        = oco_map["#{instrument}:#{created_str}"] || {}
+        positions[instrument] = {
+          side: trade_side, qty: qty, price: fill_price, time: fill_time,
+          created_str: created_str,
+          stop_loss: oco[:stop_loss], target_price: oco[:target_price]
+        }
+
+      elsif pos_disp == 'closing'
+        pos = positions[instrument]
+        next unless pos
+
+        pv        = point_value(instrument)
+        dir       = pos[:side] == 'long' ? 1 : -1
+        gross_pnl = (fill_price - pos[:price]) * pos[:qty] * pv * dir
+        rate      = @account.commission_per_contract.to_f
+        net_pnl   = (gross_pnl - rate * pos[:qty] * 2).round(2)
+        duration  = ((fill_time - pos[:time]) / 60).round rescue nil
+        date      = pos[:time].to_date
+        session   = sessions[date] ||= find_or_create_session(date)
+
+        broker_trade_id = "topstep-orders-#{instrument}-#{pos[:time].to_i}-#{fill_time.to_i}"
+        trade = @account.trades.find_or_initialize_by(broker_trade_id: broker_trade_id)
+        trade.assign_attributes(
+          trading_session:  session,
+          instrument:       instrument,
+          side:             pos[:side],
+          quantity:         pos[:qty],
+          entry_price:      pos[:price],
+          exit_price:       fill_price,
+          net_pnl:          net_pnl,
+          stop_loss:        pos[:stop_loss],
+          target_price:     pos[:target_price],
+          entered_at:       pos[:time],
+          exited_at:        fill_time,
+          duration_minutes: duration,
+          status:           :closed
+        )
+
+        if trade.save
+          @trades_imported += 1
+        else
+          @errors << "#{instrument} trade: #{trade.errors.full_messages.join(', ')}"
+        end
+
+        positions[instrument] = nil
       end
     end
 

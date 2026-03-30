@@ -7,7 +7,7 @@ import {
   startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   addMonths, subMonths, isSameDay,
 } from 'date-fns'
-import { TODAY_SESSION, LIST_ACCOUNTS } from '../lib/graphql/queries'
+import { TODAY_SESSION, LIST_ACCOUNTS, MONTH_SESSIONS } from '../lib/graphql/queries'
 import { GRADE_SESSION, DELETE_ACCOUNT } from '../lib/graphql/mutations'
 import { ON_SESSION_UPDATED } from '../lib/graphql/subscriptions'
 import { useAccountStore } from '../stores/accountStore'
@@ -40,11 +40,15 @@ function DatePickerPopover({
   today,
   onSelect,
   onClose,
+  sessionMap,
+  onMonthChange,
 }: {
   selectedDate: string
   today: string
   onSelect: (d: string) => void
   onClose: () => void
+  sessionMap: Record<string, { netPnl: number; tradeCount: number }>
+  onMonthChange: (year: number, month: number) => void
 }) {
   const [viewMonth, setViewMonth] = useState(parseISO(selectedDate))
   const ref = useRef<HTMLDivElement>(null)
@@ -56,6 +60,11 @@ function DatePickerPopover({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
+
+  const changeMonth = (next: Date) => {
+    setViewMonth(next)
+    onMonthChange(next.getFullYear(), next.getMonth() + 1)
+  }
 
   const start = startOfMonth(viewMonth)
   const end = endOfMonth(viewMonth)
@@ -70,12 +79,12 @@ function DatePickerPopover({
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => setViewMonth(subMonths(viewMonth, 1))}
+          onClick={() => changeMonth(subMonths(viewMonth, 1))}
           className="text-gray-400 hover:text-white px-2 py-1 rounded text-lg transition-colors"
         >‹</button>
         <span className="text-sm font-semibold text-white">{format(viewMonth, 'MMMM yyyy')}</span>
         <button
-          onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+          onClick={() => changeMonth(addMonths(viewMonth, 1))}
           className="text-gray-400 hover:text-white px-2 py-1 rounded text-lg transition-colors"
         >›</button>
       </div>
@@ -95,13 +104,19 @@ function DatePickerPopover({
           const isSelected = iso === selectedDate
           const isToday = isSameDay(day, new Date())
           const isFuture = iso > today
+          const sess = sessionMap[iso]
+          const hasSession = !!sess
+          const pnl = sess?.netPnl ?? 0
+          const pnlLabel = hasSession
+            ? `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}`
+            : null
 
           return (
             <button
               key={iso}
               disabled={isFuture}
               onClick={() => { onSelect(iso); onClose() }}
-              className={`flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex flex-col items-center justify-center py-1 rounded-lg text-xs font-medium transition-colors ${
                 isSelected
                   ? 'bg-green text-surface-900'
                   : isToday
@@ -111,7 +126,17 @@ function DatePickerPopover({
                   : 'text-gray-300 hover:bg-surface-50'
               }`}
             >
-              {format(day, 'd')}
+              <span>{format(day, 'd')}</span>
+              {pnlLabel && !isSelected && (
+                <span className={`text-[9px] font-mono leading-tight ${pnl >= 0 ? 'text-green' : 'text-red'}`}>
+                  {pnlLabel}
+                </span>
+              )}
+              {pnlLabel && isSelected && (
+                <span className="text-[9px] font-mono leading-tight text-surface-900/80">
+                  {pnlLabel}
+                </span>
+              )}
             </button>
           )
         })}
@@ -144,6 +169,24 @@ export default function TradeGradePage() {
   const [activeAccount, setActiveAccount] = useState<any>(account)
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [sessionMap, setSessionMap] = useState<Record<string, { netPnl: number; tradeCount: number }>>({})
+
+  const fetchMonthSessions = useCallback((year: number, month: number) => {
+    if (!account) return
+    apolloClient.query({ query: MONTH_SESSIONS, variables: { year, month }, fetchPolicy: 'network-only' })
+      .then(({ data }) => {
+        const sessions: any[] = data?.monthSessions || []
+        const map: Record<string, { netPnl: number; tradeCount: number }> = {}
+        sessions.forEach(s => { map[s.sessionDate] = { netPnl: Number(s.netPnl), tradeCount: s.tradeCount } })
+        setSessionMap(prev => ({ ...prev, ...map }))
+      })
+      .catch(() => {})
+  }, [account, apolloClient])
+
+  useEffect(() => {
+    const d = parseISO(selectedDate)
+    fetchMonthSessions(d.getFullYear(), d.getMonth() + 1)
+  }, [selectedDate, fetchMonthSessions])
 
   const [deleteAccount] = useMutation(DELETE_ACCOUNT, {
     onCompleted: (data) => {
@@ -276,6 +319,15 @@ export default function TradeGradePage() {
                 <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
               {format(parseISO(selectedDate), 'MMM d, yyyy')}
+              {(() => {
+                const sess = sessionMap[selectedDate]
+                if (!sess || sess.tradeCount === 0) return null
+                const pnl = sess.netPnl
+                const label = `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}`
+                return (
+                  <span className={`text-xs font-mono ${pnl >= 0 ? 'text-green' : 'text-red'}`}>{label}</span>
+                )
+              })()}
             </button>
 
             {showPicker && (
@@ -284,6 +336,8 @@ export default function TradeGradePage() {
                 today={today}
                 onSelect={setSelectedDate}
                 onClose={() => setShowPicker(false)}
+                sessionMap={sessionMap}
+                onMonthChange={fetchMonthSessions}
               />
             )}
           </div>

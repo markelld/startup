@@ -24,5 +24,7 @@ module Types
     field :save_trading_plan, mutation: Mutations::SaveTradingPlan
     field :change_password,   mutation: Mutations::ChangePassword
     field :delete_trade,      mutation: Mutations::DeleteTrade
+    field :forgot_password,   mutation: Mutations::ForgotPassword
+    field :reset_password,    mutation: Mutations::ResetPassword
   end
 end

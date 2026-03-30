@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@apollo/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
-import { SIGN_IN, SIGN_UP, GOOGLE_SIGN_IN, UPDATE_USER_SETTINGS } from '../lib/graphql/mutations'
+import { SIGN_IN, SIGN_UP, GOOGLE_SIGN_IN, UPDATE_USER_SETTINGS, FORGOT_PASSWORD, RESET_PASSWORD } from '../lib/graphql/mutations'
 import { useAuthStore } from '../stores/authStore'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -48,13 +48,18 @@ function PasswordInput({ placeholder, value, onChange, required }: {
 
 export default function AuthPage() {
   const [searchParams] = useSearchParams()
-  const [mode, setMode] = useState<'signin' | 'signup'>(searchParams.get('mode') === 'signup' ? 'signup' : 'signin')
+  const initialMode = searchParams.get('mode') === 'signup' ? 'signup'
+    : searchParams.get('mode') === 'reset' ? 'reset'
+    : 'signin'
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
   const [errors, setErrors] = useState<string[]>([])
+  const [successMsg, setSuccessMsg] = useState('')
+  const resetToken = searchParams.get('token') ?? ''
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
 
@@ -83,6 +88,24 @@ export default function AuthPage() {
     onError: (err) => setErrors([err.message]),
   })
 
+  const [forgotPassword, { loading: forgotLoading }] = useMutation(FORGOT_PASSWORD, {
+    onCompleted: () => {
+      setSuccessMsg('If that email exists, a reset link is on its way.')
+      setErrors([])
+    },
+    onError: (err) => setErrors([err.message]),
+  })
+
+  const [resetPassword, { loading: resetLoading }] = useMutation(RESET_PASSWORD, {
+    onCompleted: (data) => {
+      if (data.resetPassword.errors?.length > 0) { setErrors(data.resetPassword.errors); return }
+      setSuccessMsg('Password updated! You can now sign in.')
+      setErrors([])
+      setTimeout(() => { setMode('signin'); setSuccessMsg('') }, 2000)
+    },
+    onError: (err) => setErrors([err.message]),
+  })
+
   const [googleSignInMutation, { loading: googleLoading }] = useMutation(GOOGLE_SIGN_IN, {
     onCompleted: (data) => {
       const result = data.googleSignIn
@@ -98,25 +121,35 @@ export default function AuthPage() {
     googleSignInMutation({ variables: { idToken: credentialResponse.credential } })
   }
 
-  const loading = signInLoading || signUpLoading || googleLoading
+  const loading = signInLoading || signUpLoading || googleLoading || forgotLoading || resetLoading
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setErrors([])
+    setSuccessMsg('')
     if (mode === 'signup' && password !== confirmPassword) {
+      setErrors(['Passwords do not match'])
+      return
+    }
+    if (mode === 'reset' && password !== confirmPassword) {
       setErrors(['Passwords do not match'])
       return
     }
     if (mode === 'signin') {
       signIn({ variables: { email, password } })
-    } else {
+    } else if (mode === 'signup') {
       signUp({ variables: { email, password, displayName } })
+    } else if (mode === 'forgot') {
+      forgotPassword({ variables: { email } })
+    } else if (mode === 'reset') {
+      resetPassword({ variables: { token: resetToken, password } })
     }
   }
 
   const switchMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin')
     setErrors([])
+    setSuccessMsg('')
     setPassword('')
     setConfirmPassword('')
   }
@@ -130,7 +163,10 @@ export default function AuthPage() {
           </div>
           <h1 className="text-xl font-semibold text-white">Zone</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {mode === 'signin' ? 'Sign in to your account' : 'Create your account'}
+            {mode === 'signin' ? 'Sign in to your account'
+              : mode === 'signup' ? 'Create your account'
+              : mode === 'forgot' ? 'Reset your password'
+              : 'Choose a new password'}
           </p>
         </div>
 
@@ -144,21 +180,25 @@ export default function AuthPage() {
               className="w-full bg-surface-200 border border-border rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green"
             />
           )}
-          <input
-            type="email"
-            placeholder="Email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-surface-200 border border-border rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green"
-          />
-          <PasswordInput
-            placeholder="Password"
-            value={password}
-            onChange={setPassword}
-            required
-          />
-          {mode === 'signup' && (
+          {(mode === 'signin' || mode === 'signup' || mode === 'forgot') && (
+            <input
+              type="email"
+              placeholder="Email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-surface-200 border border-border rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green"
+            />
+          )}
+          {(mode === 'signin' || mode === 'signup' || mode === 'reset') && (
+            <PasswordInput
+              placeholder={mode === 'reset' ? 'New password' : 'Password'}
+              value={password}
+              onChange={setPassword}
+              required
+            />
+          )}
+          {(mode === 'signup' || mode === 'reset') && (
             <PasswordInput
               placeholder="Confirm password"
               value={confirmPassword}
@@ -181,38 +221,76 @@ export default function AuthPage() {
             </div>
           )}
 
+          {mode === 'signin' && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setErrors([]); setSuccessMsg('') }}
+                className="text-xs text-gray-400 hover:text-green transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
+
           {errors.length > 0 && (
             <div className="text-red text-sm space-y-1">
               {errors.map((e, i) => <p key={i}>{e}</p>)}
             </div>
           )}
 
+          {successMsg && (
+            <p className="text-green text-sm">{successMsg}</p>
+          )}
+
           <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-            {loading ? 'Loading…' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+            {loading ? 'Loading…'
+              : mode === 'signin' ? 'Sign In'
+              : mode === 'signup' ? 'Create Account'
+              : mode === 'forgot' ? 'Send Reset Link'
+              : 'Set New Password'}
           </button>
         </form>
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-gray-500">or</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+        {(mode === 'signin' || mode === 'signup') && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-gray-500">or</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
 
-        <div className="flex justify-center">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={() => setErrors(['Google sign-in failed'])}
-            theme="filled_black"
-            shape="rectangular"
-            width="100%"
-          />
-        </div>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setErrors(['Google sign-in failed'])}
+                theme="filled_black"
+                shape="rectangular"
+                width="100%"
+              />
+            </div>
+          </>
+        )}
 
         <p className="text-center text-sm text-gray-400">
-          {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-          <button onClick={switchMode} className="text-green hover:underline">
-            {mode === 'signin' ? 'Sign up' : 'Sign in'}
-          </button>
+          {(mode === 'forgot' || mode === 'reset') ? (
+            <>
+              {'Remember it? '}
+              <button onClick={() => { setMode('signin'); setErrors([]); setSuccessMsg('') }} className="text-green hover:underline">
+                Sign in
+              </button>
+            </>
+          ) : mode === 'signin' ? (
+            <>
+              {"Don't have an account? "}
+              <button onClick={switchMode} className="text-green hover:underline">Sign up</button>
+            </>
+          ) : (
+            <>
+              {'Already have an account? '}
+              <button onClick={switchMode} className="text-green hover:underline">Sign in</button>
+            </>
+          )}
         </p>
       </div>
     </div>
