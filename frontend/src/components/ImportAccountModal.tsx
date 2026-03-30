@@ -301,8 +301,15 @@ export default function ImportAccountModal({ onClose, onSuccess, accountId }: Pr
             </button>
 
             <button
+              onClick={() => { setTradesImported(0); setStep('done') }}
+              className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Skip — I'll add trades manually
+            </button>
+
+            <button
               onClick={() => setStep('account')}
-              className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors mt-1"
+              className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors"
             >
               Back
             </button>
@@ -315,10 +322,12 @@ export default function ImportAccountModal({ onClose, onSuccess, accountId }: Pr
             <div className="text-5xl">✓</div>
             <div>
               <p className="text-white font-semibold text-lg">
-                {tradesImported} {tradesImported === 1 ? 'trade' : 'trades'} imported successfully
+                {tradesImported === 0 ? 'Account created' : `${tradesImported} ${tradesImported === 1 ? 'trade' : 'trades'} imported`}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Your dashboard has been updated with the imported data.
+                {tradesImported === 0
+                  ? 'Add trades manually from the Journal page.'
+                  : 'Your dashboard has been updated with the imported data.'}
               </p>
             </div>
             <button onClick={handleDone} className="btn-primary w-full">
