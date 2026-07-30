@@ -548,7 +548,7 @@ class CsvImportService
     filled.each do |row|
       symbol     = parse_tv_symbol(row['symbol'])
       fill_side  = row['side'].to_s.strip.downcase   # 'buy' or 'sell'
-      qty        = row['qty'].to_s.strip.to_i
+      qty        = (row['quantity'] || row['qty']).to_s.strip.to_i
       fill_price = parse_float(row['fill price'])
       fill_time  = parse_tv_time(row['closing time'])
       placing    = row['placing time'].to_s.strip
